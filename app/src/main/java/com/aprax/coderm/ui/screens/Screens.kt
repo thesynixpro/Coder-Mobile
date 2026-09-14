@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.material3.*
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,9 +31,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.aprax.coderm.data.*
 import com.aprax.coderm.ui.components.*
 import com.aprax.coderm.ui.editor.CodeEditor
+import kotlinx.coroutines.launch
 
 private data class CreateRequest(val name: String, val template: String)
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun RootScreen(vm: MainViewModel, context: Context) {
     val workspace by vm.workspace.collectAsState()
