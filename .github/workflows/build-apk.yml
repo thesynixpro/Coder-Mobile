@@ -11,6 +11,7 @@ on:
       - 'settings.gradle.kts'
       - 'gradle/**'
       - 'gradle.properties'
+      - 'gradle/libs.versions.toml'
   workflow_dispatch:
 
 permissions:
