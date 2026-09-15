@@ -8,7 +8,7 @@
         android:label="Coder Mobile"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
-        android:theme="@style/Theme.CoderMobile">
+        android:theme="@style/Theme.CoderMobile.Starting">
         <activity
             android:name=".MainActivity"
             android:exported="true"

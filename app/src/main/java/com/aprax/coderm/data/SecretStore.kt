@@ -16,8 +16,6 @@ class SecretStore(context: Context) {
     private val prefs = context.getSharedPreferences("coder_mobile_secrets", Context.MODE_PRIVATE)
     private val alias = "coder_mobile_api_keys"
 
-    init { getOrCreateKey() }
-
     fun putApiKey(providerId: String, value: String) {
         if (value.isBlank()) { prefs.edit().remove(providerId).apply(); return }
         val encrypted = encrypt(value)
