@@ -15,6 +15,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -35,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -216,7 +218,7 @@ private fun WorkspaceStatusScreen(title: String, message: String, actionLabel: S
 @Composable
 private fun RowScope.NavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     Column(
-        Modifier.weight(1f).fillMaxHeight().selectable(selected, onClick, role = Role.Tab).padding(horizontal = 4.dp, vertical = 6.dp),
+        Modifier.weight(1f).fillMaxHeight().selectable(selected = selected, onClick = onClick, role = Role.Tab).padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -230,7 +232,7 @@ private fun RowScope.NavItem(label: String, icon: ImageVector, selected: Boolean
 @Composable
 private fun TabletNavItem(label: String, icon: ImageVector, selected: Boolean, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).selectable(selected, onClick, role = Role.Tab),
+        modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.large).selectable(selected = selected, onClick = onClick, role = Role.Tab),
         color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
     ) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -312,7 +314,7 @@ private fun CreateProjectDialog(onDismiss: () -> Unit, onCreate: (String, String
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(14.dp)); Text("Template", style = MaterialTheme.typography.labelLarge)
-                templates.forEach { item -> Row(Modifier.fillMaxWidth().selectable(template == item) { template = item }.padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(template == item) { template = item }; Text(item) } }
+                templates.forEach { item -> Row(Modifier.fillMaxWidth().selectable(selected = template == item, onClick = { template = item }).padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(template == item) { template = item }; Text(item) } }
             }
         },
         confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onCreate(name.trim(), template) }) { Text("Choose location") } },
@@ -644,7 +646,7 @@ private fun SearchScreen(ws: WorkspaceState.Ready, vm: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(query, { query = it }, modifier = Modifier.weight(1f), singleLine = true, leadingIcon = { Icon(Icons.Default.Search, null) }, placeholder = { Text("Search project") }); Spacer(Modifier.width(8.dp)); Button(enabled = query.isNotBlank(), onClick = { vm.searchProject(query, caseSensitive, wholeWord, regex, fileFilter) }) { Text("Search") } }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
-            FilterChip(caseSensitive, { caseSensitive = it }, label = { Text("Case") }); Spacer(Modifier.width(6.dp)); FilterChip(wholeWord, { wholeWord = it }, label = { Text("Whole word") }); Spacer(Modifier.width(6.dp)); FilterChip(regex, { regex = it }, label = { Text("Regex") }); Spacer(Modifier.width(6.dp)); OutlinedTextField(fileFilter, { fileFilter = it }, modifier = Modifier.width(130.dp), singleLine = true, label = { Text("Extension") })
+            FilterChip(selected = caseSensitive, onClick = { caseSensitive = !caseSensitive }, label = { Text("Case") }); Spacer(Modifier.width(6.dp)); FilterChip(selected = wholeWord, onClick = { wholeWord = !wholeWord }, label = { Text("Whole word") }); Spacer(Modifier.width(6.dp)); FilterChip(selected = regex, onClick = { regex = !regex }, label = { Text("Regex") }); Spacer(Modifier.width(6.dp)); OutlinedTextField(fileFilter, { fileFilter = it }, modifier = Modifier.width(130.dp), singleLine = true, label = { Text("Extension") })
         }
         Spacer(Modifier.height(8.dp))
         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(replacement, { replacement = it }, modifier = Modifier.weight(1f), singleLine = true, label = { Text("Replacement") }); Spacer(Modifier.width(8.dp)); OutlinedButton(enabled = query.isNotBlank(), onClick = { vm.replaceInProject(query, replacement, replaceAll = true, caseSensitive = caseSensitive, regex = regex) }) { Text("Replace all") } }

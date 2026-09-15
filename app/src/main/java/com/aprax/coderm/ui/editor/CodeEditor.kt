@@ -73,7 +73,8 @@ fun CodeEditor(
                 },
                 textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = fontSize.sp, lineHeight = (fontSize + 6).sp, color = Color(0xFFE8EDF5)),
                 visualTransformation = SyntaxHighlightTransformation(language),
-                softWrap = wordWrap,
+                singleLine = false,
+                maxLines = Int.MAX_VALUE,
                 modifier = Modifier.fillMaxHeight().widthIn(min = if (wordWrap) 0.dp else 600.dp).verticalScroll(vertical).padding(12.dp),
                 cursorBrush = Brush.linearGradient(listOf(Color(0xFF6EA8FF), Color(0xFF60E7F2))),
             )

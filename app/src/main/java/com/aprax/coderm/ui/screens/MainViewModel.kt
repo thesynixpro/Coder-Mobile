@@ -294,7 +294,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 val bounded = if (wholeWord) "\\b$source\\b" else source
                 Regex(bounded, if (caseSensitive) setOf() else setOf(RegexOption.IGNORE_CASE))
             }.getOrElse { showStatus("Invalid regular expression"); return@launch }
-            for (file in ws.files.filter { !it.isDirectory && (fileFilter.isBlank() || file.name.endsWith(fileFilter, true)) }) {
+            for (file in ws.files.filter { !it.isDirectory && (fileFilter.isBlank() || it.name.endsWith(fileFilter, true)) }) {
                 if (results.size >= 500) break
                 val text = runCatching { container.projects.read(file.uri, 512_000) }.getOrNull() ?: continue
                 text.split('\n').forEachIndexed { index, line ->
@@ -520,40 +520,67 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val active = openTab?.content ?: container.projects.read(file.uri, 2_000_000)
         if (ws == null) return active
         var html = active
-        val cssRegex = Regex("<link[^>]+href=[\\\"']([^\\\"']+)[\\\"'][^>]*>", RegexOption.IGNORE_CASE)
+
+        // Load linked local assets before entering Regex.replace lambdas; those
+        // lambdas are not suspendable, while ProjectRepository.read() is.
+        val linkedContents = mutableMapOf<String, String>()
+        for (candidate in ws.files.filter { !it.isDirectory && it.size <= 300_000 }) {
+            val content = try {
+                container.projects.read(candidate.uri, 300_000)
+            } catch (_: Exception) {
+                null
+            }
+            if (content != null) linkedContents[candidate.relativePath] = content
+        }
+
+        val cssRegex = Regex("<link[^>]+href=[\\"']([^\\"']+)[\\"][^>]*>", RegexOption.IGNORE_CASE)
         html = cssRegex.replace(html) { match ->
             val path = resolveSibling(file.relativePath, match.groupValues[1])
-            val linked = ws.files.firstOrNull { !it.isDirectory && it.relativePath == path }?.let { runCatching { container.projects.read(it.uri, 300_000) }.getOrNull() }
+            val linked = linkedContents[path]
             if (linked != null) "<style>${escapeForStyle(linked)}</style>" else match.value
         }
-        val scriptRegex = Regex("<script([^>]*)src=[\\\"']([^\\\"']+)[\\\"']([^>]*)></script>", RegexOption.IGNORE_CASE)
+        val scriptRegex = Regex("<script([^>]*)src=[\\"']([^\\"']+)[\\"][^>]*)></script>", RegexOption.IGNORE_CASE)
         html = scriptRegex.replace(html) { match ->
             val path = resolveSibling(file.relativePath, match.groupValues[2])
-            val linked = ws.files.firstOrNull { !it.isDirectory && it.relativePath == path }?.let { runCatching { container.projects.read(it.uri, 300_000) }.getOrNull() }
+            val linked = linkedContents[path]
             if (linked != null) "<script${match.groupValues[1]}${match.groupValues[3]}>${escapeForScript(linked)}</script>" else match.value
         }
         return html
     }
 
-    private fun buildAiContext(scope: AiContextScope): String {
+    private suspend fun buildAiContext(scope: AiContextScope): String {
         val ws = _workspace.value as? WorkspaceState.Ready ?: return "No project is open."
         val active = ws.tabs.firstOrNull { it.path == ws.activeTab }
-        return buildString {
-            append("Project: ${ws.project.displayName} (${ws.project.type.label})\n")
-            append("Project files: ${ws.files.count { !it.isDirectory }} files, ${ws.files.count { it.isDirectory }} folders\n")
-            append("File tree:\n")
-            ws.files.take(250).forEach { append(if (it.isDirectory) "[DIR] " else "[FILE] ").append(it.relativePath).append('\n') }
-            when (scope) {
-                AiContextScope.CURRENT_FILE -> if (active != null) append("\nActive file ${active.path}:\n${active.content.take(20_000)}")
-                AiContextScope.OPEN_FILES -> ws.tabs.forEach { append("\n--- ${it.path} ---\n${it.content.take(10_000)}") }
-                AiContextScope.PROJECT -> {
-                    ws.files.filter { !it.isDirectory && it.size < 80_000 }.take(16).forEach { file ->
-                        val content = runCatching { container.projects.read(file.uri, 80_000) }.getOrNull() ?: return@forEach
-                        append("\n--- ${file.relativePath} ---\n${content.take(6_000)}")
-                    }
+        val context = StringBuilder()
+        context.append("Project: ${ws.project.displayName} (${ws.project.type.label})\n")
+        context.append("Project files: ${ws.files.count { !it.isDirectory }} files, ${ws.files.count { it.isDirectory }} folders\n")
+        context.append("File tree:\n")
+        for (file in ws.files.take(250)) {
+            context.append(if (file.isDirectory) "[DIR] " else "[FILE] ")
+                .append(file.relativePath)
+                .append('\n')
+        }
+        when (scope) {
+            AiContextScope.CURRENT_FILE -> if (active != null) {
+                context.append("\nActive file ${active.path}:\n${active.content.take(20_000)}")
+            }
+            AiContextScope.OPEN_FILES -> {
+                for (tab in ws.tabs) {
+                    context.append("\n--- ${tab.path} ---\n${tab.content.take(10_000)}")
+                }
+            }
+            AiContextScope.PROJECT -> {
+                for (file in ws.files.filter { !it.isDirectory && it.size < 80_000 }.take(16)) {
+                    val content = try {
+                        container.projects.read(file.uri, 80_000)
+                    } catch (_: Exception) {
+                        null
+                    } ?: continue
+                    context.append("\n--- ${file.relativePath} ---\n${content.take(6_000)}")
                 }
             }
         }
+        return context.toString()
     }
 
     private fun systemPrompt(scope: AiContextScope) = "You are the embedded coding agent inside Coder Mobile. Be accurate, concise, and project-aware. Current context scope: ${scope.name}. Do not claim to execute runtimes unavailable on Android. Never request or reveal API keys. Prefer minimal, reviewable changes."
