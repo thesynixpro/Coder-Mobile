@@ -1,3 +1,10 @@
-<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
-    android:src="@drawable/coder_logo_legacy"
-    android:gravity="center" />
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#0B0E13" android:pathData="M0,0h108v108h-108z"/>
+    <path android:fillColor="#8B5CFF" android:pathData="M58,10 L94,30 L94,44 L65,27 L55,27 L39,36 L32,48 L32,60 L39,72 L55,81 L65,81 L94,64 L94,78 L58,98 L46,98 L27,86 L17,65 L17,43 L27,22 L46,10 Z"/>
+    <path android:fillColor="#33BFFF" android:pathData="M58,10 L94,30 L94,44 L65,27 L55,27 L46,32 L39,36 L32,48 L28,58 L28,43 L39,25 L53,14 Z"/>
+    <path android:fillColor="#5D7CFF" android:pathData="M55,81 L65,81 L94,64 L94,78 L58,98 L46,98 L27,86 L21,73 L32,78 L43,84 Z"/>
+    <path android:fillColor="#39BDF8" android:pathData="M39,45 L30,54 L39,63 L44,58 L40,54 L44,50 Z"/>
+    <path android:fillColor="#7E72FF" android:pathData="M69,45 L78,54 L69,63 L64,58 L68,54 L64,50 Z"/>
+    <path android:fillColor="#C7B7FF" android:pathData="M57,40 L63,42 L51,68 L45,66 Z"/>
+</vector>

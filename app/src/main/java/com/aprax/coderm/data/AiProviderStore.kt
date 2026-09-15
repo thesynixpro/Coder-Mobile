@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -29,7 +30,8 @@ class AiProviderStore(private val context: Context, private val secrets: SecretS
     }
 
     suspend fun save(config: AiProviderConfig) {
-        secrets.putApiKey(config.id, config.apiKey)
+        if (config.apiKey.isNotBlank()) secrets.putApiKey(config.id, config.apiKey)
+        else if (parse(context.providerDataStore.data.first()[providersKey] ?: "[]").none { it.id == config.id }) secrets.remove(config.id)
         context.providerDataStore.edit { prefs ->
             val list = parse(prefs[providersKey] ?: "[]").filterNot { it.id == config.id } + config.copy(apiKey = "")
             prefs[providersKey] = JSONArray(list.map { toJson(it) }).toString()

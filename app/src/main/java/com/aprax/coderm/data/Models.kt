@@ -59,3 +59,17 @@ data class AiProviderConfig(
     val maxTokens: Int = 2048,
     val temperature: Double = 0.2
 )
+
+data class SearchResult(
+    val file: ProjectFile,
+    val line: Int,
+    val column: Int,
+    val snippet: String
+)
+
+data class AiChangeProposal(
+    val path: String,
+    val content: String,
+    val original: String,
+    val summary: String = "AI proposed a change to $path"
+)

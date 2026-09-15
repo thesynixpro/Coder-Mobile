@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -19,66 +20,57 @@ class ProjectStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val autosaveKey = booleanPreferencesKey("autosave")
     private val fontSizeKey = longPreferencesKey("font_size")
+    private val tabSizeKey = intPreferencesKey("tab_size")
+    private val wordWrapKey = booleanPreferencesKey("word_wrap")
+    private val defaultProviderKey = stringPreferencesKey("default_provider")
 
-    val recentProjects: Flow<List<ProjectRef>> = context.dataStore.data.map { prefs ->
-        val raw = prefs[recentKey] ?: "[]"
-        runCatching {
-            val arr = JSONArray(raw)
-            buildList {
-                for (i in 0 until arr.length()) {
-                    val o = arr.getJSONObject(i)
-                    add(
-                        ProjectRef(
-                            uri = Uri.parse(o.getString("uri")),
-                            displayName = o.optString("name", "Project"),
-                            type = runCatching { ProjectType.valueOf(o.optString("type", "GENERIC")) }.getOrDefault(ProjectType.GENERIC),
-                            lastOpenedEpochMs = o.optLong("lastOpened", 0),
-                            pinned = o.optBoolean("pinned", false)
-                        )
-                    )
-                }
-            }.sortedWith(compareByDescending<ProjectRef> { it.pinned }.thenByDescending { it.lastOpenedEpochMs })
-        }.getOrDefault(emptyList())
-    }
-
+    val recentProjects: Flow<List<ProjectRef>> = context.dataStore.data.map { prefs -> parseProjects(prefs[recentKey] ?: "[]") }
     val theme: Flow<String> = context.dataStore.data.map { it[themeKey] ?: "system" }
     val autosave: Flow<Boolean> = context.dataStore.data.map { it[autosaveKey] ?: true }
     val fontSize: Flow<Long> = context.dataStore.data.map { it[fontSizeKey] ?: 14L }
+    val tabSize: Flow<Int> = context.dataStore.data.map { it[tabSizeKey] ?: 4 }
+    val wordWrap: Flow<Boolean> = context.dataStore.data.map { it[wordWrapKey] ?: false }
+    val defaultProviderId: Flow<String> = context.dataStore.data.map { it[defaultProviderKey] ?: "" }
 
     suspend fun rememberProject(project: ProjectRef) {
         context.dataStore.edit { prefs ->
             val existing = parseProjects(prefs[recentKey] ?: "[]").filterNot { it.uri == project.uri }
             val next = (listOf(project.copy(lastOpenedEpochMs = System.currentTimeMillis())) + existing).take(20)
-            prefs[recentKey] = JSONArray(next.map { projectToJson(it) }).toString()
+            prefs[recentKey] = JSONArray(next.map(::projectToJson)).toString()
         }
     }
 
-    suspend fun removeProject(uri: Uri) {
-        context.dataStore.edit { prefs ->
-            val next = parseProjects(prefs[recentKey] ?: "[]").filterNot { it.uri == uri }
-            prefs[recentKey] = JSONArray(next.map { projectToJson(it) }).toString()
-        }
+    suspend fun removeProject(uri: Uri) = context.dataStore.edit { prefs ->
+        prefs[recentKey] = JSONArray(parseProjects(prefs[recentKey] ?: "[]").filterNot { it.uri == uri }.map(::projectToJson)).toString()
     }
 
-    suspend fun togglePinned(uri: Uri) {
-        context.dataStore.edit { prefs ->
-            val next = parseProjects(prefs[recentKey] ?: "[]").map { if (it.uri == uri) it.copy(pinned = !it.pinned) else it }
-            prefs[recentKey] = JSONArray(next.map { projectToJson(it) }).toString()
-        }
+    suspend fun togglePinned(uri: Uri) = context.dataStore.edit { prefs ->
+        prefs[recentKey] = JSONArray(parseProjects(prefs[recentKey] ?: "[]").map { if (it.uri == uri) it.copy(pinned = !it.pinned) else it }.map(::projectToJson)).toString()
     }
 
     suspend fun saveTheme(value: String) { context.dataStore.edit { it[themeKey] = value } }
     suspend fun saveAutosave(value: Boolean) { context.dataStore.edit { it[autosaveKey] = value } }
-    suspend fun saveFontSize(value: Long) { context.dataStore.edit { it[fontSizeKey] = value.coerceIn(10L, 24L) } }
+    suspend fun saveFontSize(value: Long) { context.dataStore.edit { it[fontSizeKey] = value.coerceIn(10L, 28L) } }
+    suspend fun saveTabSize(value: Int) { context.dataStore.edit { it[tabSizeKey] = value.coerceIn(2, 8) } }
+    suspend fun saveWordWrap(value: Boolean) { context.dataStore.edit { it[wordWrapKey] = value } }
+    suspend fun saveDefaultProvider(id: String) { context.dataStore.edit { it[defaultProviderKey] = id } }
 
     private fun parseProjects(raw: String): List<ProjectRef> = runCatching {
         val arr = JSONArray(raw)
         buildList {
             repeat(arr.length()) { i ->
                 val o = arr.getJSONObject(i)
-                add(ProjectRef(Uri.parse(o.getString("uri")), o.optString("name", "Project"), runCatching { ProjectType.valueOf(o.optString("type", "GENERIC")) }.getOrDefault(ProjectType.GENERIC), o.optLong("lastOpened"), o.optBoolean("pinned")))
+                add(
+                    ProjectRef(
+                        Uri.parse(o.getString("uri")),
+                        o.optString("name", "Project"),
+                        runCatching { ProjectType.valueOf(o.optString("type", "GENERIC")) }.getOrDefault(ProjectType.GENERIC),
+                        o.optLong("lastOpened", 0L),
+                        o.optBoolean("pinned", false)
+                    )
+                )
             }
-        }
+        }.sortedWith(compareByDescending<ProjectRef> { it.pinned }.thenByDescending { it.lastOpenedEpochMs })
     }.getOrDefault(emptyList())
 
     private fun projectToJson(p: ProjectRef) = JSONObject().apply {
