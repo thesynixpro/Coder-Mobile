@@ -533,13 +533,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             if (content != null) linkedContents[candidate.relativePath] = content
         }
 
-        val cssRegex = Regex("<link[^>]+href=[\\"']([^\\"']+)[\\"][^>]*>", RegexOption.IGNORE_CASE)
+        val cssRegex = Regex("""<link[^>]+href=["']([^"']+)["'][^>]*>""", RegexOption.IGNORE_CASE)
         html = cssRegex.replace(html) { match ->
             val path = resolveSibling(file.relativePath, match.groupValues[1])
             val linked = linkedContents[path]
             if (linked != null) "<style>${escapeForStyle(linked)}</style>" else match.value
         }
-        val scriptRegex = Regex("<script([^>]*)src=[\\"']([^\\"']+)[\\"][^>]*)></script>", RegexOption.IGNORE_CASE)
+        val scriptRegex = Regex("""<script([^>]*)src=["']([^"']+)["'][^>]*></script>""", RegexOption.IGNORE_CASE)
         html = scriptRegex.replace(html) { match ->
             val path = resolveSibling(file.relativePath, match.groupValues[2])
             val linked = linkedContents[path]

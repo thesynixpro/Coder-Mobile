@@ -66,8 +66,8 @@ fun CodeEditor(
                 }
             }
             BasicTextField(
-                value = field,
-                onValueChange = { new ->
+                field,
+                { new ->
                     val smart = smartEdit(field, new, tabSize)
                     setText(smart.text, smart.selection)
                 },

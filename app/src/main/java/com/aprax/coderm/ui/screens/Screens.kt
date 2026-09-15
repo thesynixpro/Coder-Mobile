@@ -314,7 +314,18 @@ private fun CreateProjectDialog(onDismiss: () -> Unit, onCreate: (String, String
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(name, { name = it }, label = { Text("Project name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(14.dp)); Text("Template", style = MaterialTheme.typography.labelLarge)
-                templates.forEach { item -> Row(Modifier.fillMaxWidth().selectable(selected = template == item, onClick = { template = item }).padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) { RadioButton(template == item) { template = item }; Text(item) } }
+                templates.forEach { item ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = template == item, role = Role.RadioButton, onClick = { template = item })
+                            .padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        RadioButton(selected = template == item, onClick = { template = item })
+                        Text(item)
+                    }
+                }
             }
         },
         confirmButton = { Button(enabled = name.isNotBlank(), onClick = { onCreate(name.trim(), template) }) { Text("Choose location") } },
