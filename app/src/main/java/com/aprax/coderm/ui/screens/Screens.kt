@@ -61,6 +61,7 @@ fun RootScreen(vm: MainViewModel, context: Context) {
     val snackbarHostState = remember { SnackbarHostState() }
     var pendingCreate by rememberSaveable { mutableStateOf<CreateRequest?>(null) }
     var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var moreOpen by rememberSaveable { mutableStateOf(false) }
 
     val directoryPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
@@ -84,62 +85,36 @@ fun RootScreen(vm: MainViewModel, context: Context) {
         status?.let { snackbarHostState.showSnackbar(it); vm.clearStatus() }
     }
 
-    when (val state = workspace) {
-        WorkspaceState.NoProject -> {
-            OnboardingScreen(
-                recent = recent,
-                onOpen = { directoryPicker.launch(null) },
-                onCreate = { showCreateDialog = true },
-                onRecent = { vm.openProject(it.uri) },
-                onRemoveRecent = vm::removeRecent,
-                onPinRecent = vm::togglePinned
-            )
-            if (showCreateDialog) CreateProjectDialog(
-                onDismiss = { showCreateDialog = false },
-                onCreate = { name, template ->
-                    showCreateDialog = false
-                    pendingCreate = CreateRequest(name, template)
-                    directoryPicker.launch(null)
-                }
-            )
-            return
-        }
-        is WorkspaceState.Loading -> { WorkspaceStatusScreen("Opening workspace", state.message); return }
-        is WorkspaceState.Error -> {
-            WorkspaceStatusScreen("Workspace unavailable", state.message, "Open Project") { directoryPicker.launch(null) }
-            return
-        }
-        is WorkspaceState.Ready -> Unit
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val ready = workspace as? WorkspaceState.Ready
+
+    fun navigate(destination: Destination) {
+        moreOpen = false
+        vm.setDestination(destination)
     }
 
-    val ready = workspace as WorkspaceState.Ready
-    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(ready.project.displayName, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(ready.project.type.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
-                navigationIcon = { IconButton(onClick = { vm.setDestination(Destination.EXPLORER) }) { BrandMark(Modifier.size(28.dp)) } },
-                actions = {
-                    IconButton(onClick = vm::saveActive) { Icon(Icons.Default.Save, "Save") }
-                    IconButton(onClick = vm::refresh) { Icon(Icons.Default.Refresh, "Refresh project") }
-                    IconButton(onClick = { vm.setDestination(Destination.SEARCH) }) { Icon(Icons.Default.Search, "Search project") }
-                }
+            CoderTopBar(
+                title = ready?.project?.displayName ?: "Coder Mobile",
+                subtitle = ready?.project?.type?.label ?: "Code • Build • Create",
+                onBrandClick = { navigate(Destination.EXPLORER) },
+                onSearch = { navigate(Destination.SEARCH) },
+                onMore = { moreOpen = true },
+                showWorkspaceActions = ready != null,
+                onSave = vm::saveActive,
+                onRefresh = vm::refresh
             )
         },
         bottomBar = {
             if (!isTablet) {
                 NavigationBar {
-                    NavItem("Explorer", Icons.Default.FolderOpen, destination == Destination.EXPLORER) { vm.setDestination(Destination.EXPLORER) }
-                    NavItem("Editor", Icons.Default.Code, destination == Destination.EDITOR) { vm.setDestination(Destination.EDITOR) }
-                    NavItem("Preview", Icons.Default.Visibility, destination == Destination.PREVIEW) { vm.setDestination(Destination.PREVIEW) }
-                    NavItem("AI", Icons.Default.AutoAwesome, destination == Destination.AI) { vm.setDestination(Destination.AI) }
-                    NavItem("More", Icons.Default.MoreHoriz, destination == Destination.SETTINGS) { vm.setDestination(Destination.SETTINGS) }
+                    NavItem("Explorer", Icons.Default.FolderOpen, destination == Destination.EXPLORER && !moreOpen) { navigate(Destination.EXPLORER) }
+                    NavItem("Editor", Icons.Default.Code, destination == Destination.EDITOR && !moreOpen) { navigate(Destination.EDITOR) }
+                    NavItem("Preview", Icons.Default.Visibility, destination == Destination.PREVIEW && !moreOpen) { navigate(Destination.PREVIEW) }
+                    NavItem("AI", Icons.Default.AutoAwesome, destination == Destination.AI && !moreOpen) { navigate(Destination.AI) }
+                    NavItem("More", Icons.Default.MoreHoriz, moreOpen) { moreOpen = true }
                 }
             }
         }
@@ -148,33 +123,75 @@ fun RootScreen(vm: MainViewModel, context: Context) {
             if (isTablet) {
                 Surface(Modifier.width(190.dp).fillMaxHeight(), tonalElevation = 1.dp) {
                     Column(Modifier.fillMaxSize().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TabletNavItem("Explorer", Icons.Default.FolderOpen, destination == Destination.EXPLORER) { vm.setDestination(Destination.EXPLORER) }
-                        TabletNavItem("Editor", Icons.Default.Code, destination == Destination.EDITOR) { vm.setDestination(Destination.EDITOR) }
-                        TabletNavItem("Preview", Icons.Default.Visibility, destination == Destination.PREVIEW) { vm.setDestination(Destination.PREVIEW) }
-                        TabletNavItem("AI", Icons.Default.AutoAwesome, destination == Destination.AI) { vm.setDestination(Destination.AI) }
-                        TabletNavItem("Run & Build", Icons.Default.PlayArrow, destination == Destination.BUILD) { vm.setDestination(Destination.BUILD) }
-                        TabletNavItem("Problems", Icons.Default.BugReport, destination == Destination.PROBLEMS) { vm.setDestination(Destination.PROBLEMS) }
-                        TabletNavItem("Terminal", Icons.Default.Terminal, destination == Destination.TERMINAL) { vm.setDestination(Destination.TERMINAL) }
-                        TabletNavItem("Git", Icons.Default.AccountTree, destination == Destination.GIT) { vm.setDestination(Destination.GIT) }
-                        TabletNavItem("Settings", Icons.Default.Settings, destination == Destination.SETTINGS) { vm.setDestination(Destination.SETTINGS) }
+                        TabletNavItem("Explorer", Icons.Default.FolderOpen, destination == Destination.EXPLORER) { navigate(Destination.EXPLORER) }
+                        TabletNavItem("Editor", Icons.Default.Code, destination == Destination.EDITOR) { navigate(Destination.EDITOR) }
+                        TabletNavItem("Preview", Icons.Default.Visibility, destination == Destination.PREVIEW) { navigate(Destination.PREVIEW) }
+                        TabletNavItem("AI", Icons.Default.AutoAwesome, destination == Destination.AI) { navigate(Destination.AI) }
+                        TabletNavItem("Run & Build", Icons.Default.PlayArrow, destination == Destination.BUILD) { navigate(Destination.BUILD) }
+                        TabletNavItem("Problems", Icons.Default.BugReport, destination == Destination.PROBLEMS) { navigate(Destination.PROBLEMS) }
+                        TabletNavItem("Terminal", Icons.Default.Terminal, destination == Destination.TERMINAL) { navigate(Destination.TERMINAL) }
+                        TabletNavItem("Git", Icons.Default.AccountTree, destination == Destination.GIT) { navigate(Destination.GIT) }
+                        TabletNavItem("Settings", Icons.Default.Settings, destination == Destination.SETTINGS) { navigate(Destination.SETTINGS) }
                     }
                 }
             }
+
             Box(Modifier.weight(1f).fillMaxHeight()) {
-            when (destination) {
-                Destination.EXPLORER -> ExplorerScreen(ready, vm, onImport = { importPicker.launch(arrayOf("*/*")) }, onExport = { source -> exportSource = source; exportPicker.launch(source.lastPathSegment ?: "export") }, onShare = { file -> shareProjectFile(context, file) })
-                Destination.EDITOR -> EditorScreen(ready, vm)
-                Destination.PREVIEW -> PreviewScreen(ready, vm, context)
-                Destination.AI -> AiScreen(ready, vm)
-                Destination.TERMINAL -> TerminalScreen(ready, vm)
-                Destination.PROBLEMS -> ProblemsScreen(vm)
-                Destination.SEARCH -> SearchScreen(ready, vm)
-                Destination.SETTINGS -> SettingsScreen(vm, context)
-                Destination.BUILD -> BuildScreen(ready, vm)
-                Destination.GIT -> GitScreen(ready, vm)
-            }
+                when (val state = workspace) {
+                    WorkspaceState.NoProject -> {
+                        when (destination) {
+                            Destination.EXPLORER -> OnboardingScreen(
+                                recent = recent,
+                                onOpen = { directoryPicker.launch(null) },
+                                onCreate = { showCreateDialog = true },
+                                onRecent = { vm.openProject(it.uri) },
+                                onRemoveRecent = vm::removeRecent,
+                                onPinRecent = vm::togglePinned,
+                                onQuickAction = { quickDestination -> navigate(quickDestination) }
+                            )
+                            Destination.SETTINGS -> SettingsScreen(vm, context)
+                            else -> NoProjectFeatureScreen(destination) { navigate(Destination.EXPLORER) }
+                        }
+                    }
+                    is WorkspaceState.Loading -> WorkspaceStatusScreen("Opening workspace", state.message)
+                    is WorkspaceState.Error -> WorkspaceStatusScreen("Workspace unavailable", state.message, "Open Project") { directoryPicker.launch(null) }
+                    is WorkspaceState.Ready -> {
+                        when (destination) {
+                            Destination.EXPLORER -> ExplorerScreen(state, vm, onImport = { importPicker.launch(arrayOf("*/*")) }, onExport = { source -> exportSource = source; exportPicker.launch(source.lastPathSegment ?: "export") }, onShare = { file -> shareProjectFile(context, file) })
+                            Destination.EDITOR -> EditorScreen(state, vm)
+                            Destination.PREVIEW -> PreviewScreen(state, vm, context)
+                            Destination.AI -> AiScreen(state, vm)
+                            Destination.TERMINAL -> TerminalScreen(state, vm)
+                            Destination.PROBLEMS -> ProblemsScreen(vm)
+                            Destination.SEARCH -> SearchScreen(state, vm)
+                            Destination.SETTINGS -> SettingsScreen(vm, context)
+                            Destination.BUILD -> BuildScreen(state, vm)
+                            Destination.GIT -> GitScreen(state, vm)
+                        }
+                    }
+                }
             }
         }
+    }
+
+    if (moreOpen) {
+        MoreOptionsSheet(
+            destination = destination,
+            hasProject = ready != null,
+            onDismiss = { moreOpen = false },
+            onNavigate = ::navigate
+        )
+    }
+
+    if (showCreateDialog) {
+        CreateProjectDialog(
+            onDismiss = { showCreateDialog = false },
+            onCreate = { name, template ->
+                showCreateDialog = false
+                pendingCreate = CreateRequest(name, template)
+                directoryPicker.launch(null)
+            }
+        )
     }
 
     proposal?.let { current ->
@@ -184,15 +201,114 @@ fun RootScreen(vm: MainViewModel, context: Context) {
             text = {
                 Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                     Text(current.summary, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(12.dp))
-                    Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.surfaceVariant) {
-                        SelectionContainer { Text(current.content, modifier = Modifier.padding(12.dp), fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
-                    }
+                    Spacer(Modifier.height(10.dp))
+                    SelectionContainer { Text(current.content, fontFamily = FontFamily.Monospace, fontSize = 12.sp) }
                 }
             },
             confirmButton = { Button(onClick = vm::applyProposal) { Text(if (current.original.isBlank()) "Create" else "Apply") } },
             dismissButton = { TextButton(onClick = vm::rejectProposal) { Text("Reject") } }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CoderTopBar(
+    title: String,
+    subtitle: String,
+    onBrandClick: () -> Unit,
+    onSearch: () -> Unit,
+    onMore: () -> Unit,
+    showWorkspaceActions: Boolean,
+    onSave: () -> Unit,
+    onRefresh: () -> Unit
+) {
+    TopAppBar(
+        navigationIcon = {
+            IconButton(onClick = onBrandClick) {
+                BrandMark(Modifier.size(34.dp))
+            }
+        },
+        title = {
+            Column {
+                Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        actions = {
+            IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
+            if (showWorkspaceActions) {
+                IconButton(onClick = onSave) { Icon(Icons.Default.Save, "Save") }
+                IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Refresh project") }
+            }
+            IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "More options") }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreOptionsSheet(
+    destination: Destination,
+    hasProject: Boolean,
+    onDismiss: () -> Unit,
+    onNavigate: (Destination) -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 18.dp)) {
+            Text("More", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp))
+            val options = listOf(
+                Triple(Destination.SEARCH, "Search", Icons.Default.Search),
+                Triple(Destination.PROBLEMS, "Problems", Icons.Default.BugReport),
+                Triple(Destination.BUILD, "Run & Build", Icons.Default.PlayArrow),
+                Triple(Destination.TERMINAL, "Terminal", Icons.Default.Terminal),
+                Triple(Destination.GIT, "Git", Icons.Default.AccountTree),
+                Triple(Destination.SETTINGS, "Settings", Icons.Default.Settings)
+            )
+            options.forEach { (target, label, icon) ->
+                ListItem(
+                    headlineContent = { Text(label) },
+                    supportingContent = { Text(if (hasProject) "Open tool" else "Select a project to use this tool") },
+                    leadingContent = { Icon(icon, null) },
+                    modifier = Modifier.fillMaxWidth().clickable { onNavigate(target) }
+                )
+            }
+            if (!hasProject && destination != Destination.EXPLORER) {
+                Spacer(Modifier.height(4.dp))
+                Text("Some tools are available only after a project is opened.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 20.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoProjectFeatureScreen(destination: Destination, onOpenExplorer: () -> Unit) {
+    val title = when (destination) {
+        Destination.EDITOR -> "Editor"
+        Destination.PREVIEW -> "Preview"
+        Destination.AI -> "AI Assistant"
+        Destination.TERMINAL -> "Terminal"
+        Destination.PROBLEMS -> "Problems"
+        Destination.SEARCH -> "Search"
+        Destination.BUILD -> "Run & Build"
+        Destination.GIT -> "Git"
+        Destination.SETTINGS -> "Settings"
+        Destination.EXPLORER -> "Explorer"
+    }
+    val icon = when (destination) {
+        Destination.EDITOR -> Icons.Default.Code
+        Destination.PREVIEW -> Icons.Default.Visibility
+        Destination.AI -> Icons.Default.AutoAwesome
+        Destination.TERMINAL -> Icons.Default.Terminal
+        Destination.PROBLEMS -> Icons.Default.BugReport
+        Destination.SEARCH -> Icons.Default.Search
+        Destination.BUILD -> Icons.Default.PlayArrow
+        Destination.GIT -> Icons.Default.AccountTree
+        Destination.SETTINGS -> Icons.Default.Settings
+        Destination.EXPLORER -> Icons.Default.FolderOpen
+    }
+    EmptyState(icon, "No project open", "$title is ready. Open or create a project to start using this workspace.", "Open Explorer") {
+        onOpenExplorer()
     }
 }
 
@@ -249,31 +365,100 @@ private fun OnboardingScreen(
     onCreate: () -> Unit,
     onRecent: (ProjectRef) -> Unit,
     onRemoveRecent: (Uri) -> Unit,
-    onPinRecent: (Uri) -> Unit
+    onPinRecent: (Uri) -> Unit,
+    onQuickAction: (Destination) -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
-            Spacer(Modifier.height(32.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) { BrandMark(Modifier.size(52.dp)); Spacer(Modifier.width(14.dp)); Column { Text("Coder Mobile", style = MaterialTheme.typography.headlineMedium); Text("Code • Build • Create", color = MaterialTheme.colorScheme.onSurfaceVariant) } }
-            Spacer(Modifier.height(42.dp))
+            Spacer(Modifier.height(12.dp))
             Text("Your mobile development workspace", style = MaterialTheme.typography.headlineLarge)
             Spacer(Modifier.height(10.dp))
             Text("Select a project directory to start coding. Your selected folder remains the local source of truth.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(22.dp))
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = 3.dp
+            ) {
+                Column(Modifier.padding(22.dp)) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        BrandMark(Modifier.size(88.dp))
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Text("No Project Open", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Text("Select a project directory to start coding or create a new project.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(18.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        Button(onClick = onOpen, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
+                        OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
+                    }
+                }
+            }
+
             Spacer(Modifier.height(24.dp))
-            Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().height(54.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(10.dp)); Text("Open Project") }
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth().height(54.dp)) { Icon(Icons.Default.CreateNewFolder, null); Spacer(Modifier.width(10.dp)); Text("Create Project") }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Quick Access", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                TextButton(onClick = { onQuickAction(Destination.SETTINGS) }) { Text("View All") }
+            }
+            QuickAccessGrid(onQuickAction)
+
+            Spacer(Modifier.height(24.dp))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Text("Recent Projects", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                if (recent.isNotEmpty()) TextButton(onClick = { onQuickAction(Destination.EXPLORER) }) { Text("View All") }
+            }
             if (recent.isNotEmpty()) {
-                Spacer(Modifier.height(34.dp)); SectionHeader("Recent Projects", Icons.Default.History)
                 recent.take(8).forEach { project ->
                     RecentProjectItem(project, onRecent, onRemoveRecent, onPinRecent)
                 }
             } else {
-                Spacer(Modifier.height(34.dp)); EmptyState(Icons.Default.FolderOpen, "No recent projects", "Open or create a directory to begin your first workspace.", "Open Project", onOpen)
+                Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
+                    Column(Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.History, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(8.dp))
+                        Text("No recent projects yet", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(4.dp))
+                        Text("Open a project to see it here", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
-            Spacer(Modifier.height(30.dp))
-            Surface(shape = MaterialTheme.shapes.large, tonalElevation = 2.dp) {
+            Spacer(Modifier.height(20.dp))
+            Surface(shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
                 Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Security, null); Spacer(Modifier.width(10.dp)); Text("Projects stay on your device unless you explicitly use AI, Git/network actions, or share a file.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuickAccessGrid(onNavigate: (Destination) -> Unit) {
+    val actions = listOf(
+        Triple("Explorer", Icons.Default.FolderOpen, Destination.EXPLORER),
+        Triple("Editor", Icons.Default.Code, Destination.EDITOR),
+        Triple("Preview", Icons.Default.Visibility, Destination.PREVIEW),
+        Triple("AI", Icons.Default.AutoAwesome, Destination.AI),
+        Triple("Terminal", Icons.Default.Terminal, Destination.TERMINAL),
+        Triple("Settings", Icons.Default.Settings, Destination.SETTINGS)
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (row in actions.chunked(3)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { (label, icon, destination) ->
+                    Surface(
+                        modifier = Modifier.weight(1f).height(96.dp).clickable { onNavigate(destination) },
+                        shape = MaterialTheme.shapes.large,
+                        tonalElevation = 1.dp,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize()) {
+                            Icon(icon, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(7.dp))
+                            Text(label, style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f).height(96.dp)) }
             }
         }
     }
