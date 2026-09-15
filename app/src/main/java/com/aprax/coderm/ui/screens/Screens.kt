@@ -85,7 +85,9 @@ fun RootScreen(vm: MainViewModel, context: Context) {
         status?.let { snackbarHostState.showSnackbar(it); vm.clearStatus() }
     }
 
-    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
+    val configuration = LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+    val isCompactPortrait = !isTablet && configuration.screenHeightDp > configuration.screenWidthDp
     val ready = workspace as? WorkspaceState.Ready
 
     fun navigate(destination: Destination) {
@@ -103,6 +105,7 @@ fun RootScreen(vm: MainViewModel, context: Context) {
                 onSearch = { navigate(Destination.SEARCH) },
                 onMore = { moreOpen = true },
                 showWorkspaceActions = ready != null,
+                compactPortrait = isCompactPortrait,
                 onSave = vm::saveActive,
                 onRefresh = vm::refresh
             )
@@ -220,6 +223,7 @@ private fun CoderTopBar(
     onSearch: () -> Unit,
     onMore: () -> Unit,
     showWorkspaceActions: Boolean,
+    compactPortrait: Boolean,
     onSave: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -239,7 +243,9 @@ private fun CoderTopBar(
             IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
             if (showWorkspaceActions) {
                 IconButton(onClick = onSave) { Icon(Icons.Default.Save, "Save") }
-                IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Refresh project") }
+                if (!compactPortrait) {
+                    IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Refresh project") }
+                }
             }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "More options") }
         }
@@ -389,9 +395,16 @@ private fun OnboardingScreen(
                     Spacer(Modifier.height(8.dp))
                     Text("Select a project directory to start coding or create a new project.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = onOpen, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
-                        OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
+                    if (LocalConfiguration.current.screenWidthDp < 430) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
+                            OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
+                        }
+                    } else {
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(onClick = onOpen, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
+                            OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
+                        }
                     }
                 }
             }
@@ -728,10 +741,39 @@ private fun PreviewScreen(ws: WorkspaceState.Ready, vm: MainViewModel, context: 
         ?: ws.files.firstOrNull { !it.isDirectory && it.extension.lowercase() in setOf("html", "htm", "md", "markdown", "json", "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt") }
     if (active == null) { EmptyState(Icons.Default.VisibilityOff, "No previewable file", "Open an HTML, Markdown, JSON, image, text, or PDF file from Explorer."); return }
     val extension = active.extension.lowercase()
+    val compactPortrait = LocalConfiguration.current.screenWidthDp < 430 && LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
     Column(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Preview", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-            AssistChip(onClick = { vm.setDestination(Destination.EDITOR) }, label = { Text("Edit") })
+        if (compactPortrait) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
+                Text("Preview", style = MaterialTheme.typography.titleLarge)
+                Text(active.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { vm.openProjectPreview() }, modifier = Modifier.weight(1f)) {
+                        Icon(Icons.Default.PlayArrow, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Project Preview")
+                    }
+                    OutlinedButton(onClick = { vm.setDestination(Destination.EDITOR) }, modifier = Modifier.weight(0.55f)) { Text("Edit") }
+                }
+            }
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Preview", style = MaterialTheme.typography.titleLarge)
+                    Text(active.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                OutlinedButton(onClick = { vm.openProjectPreview() }) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Project Preview")
+                }
+                TextButton(onClick = { vm.setDestination(Destination.EDITOR) }) { Text("Edit") }
+            }
         }
         when (extension) {
             "html", "htm" -> HtmlPreview(active, vm)

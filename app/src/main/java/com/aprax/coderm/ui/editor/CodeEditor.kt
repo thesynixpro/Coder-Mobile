@@ -75,7 +75,11 @@ fun CodeEditor(
                 visualTransformation = SyntaxHighlightTransformation(language),
                 singleLine = false,
                 maxLines = Int.MAX_VALUE,
-                modifier = Modifier.fillMaxHeight().widthIn(min = if (wordWrap) 0.dp else 600.dp).verticalScroll(vertical).padding(12.dp),
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .then(if (wordWrap) Modifier else Modifier.widthIn(min = 280.dp))
+                    .verticalScroll(vertical)
+                    .padding(12.dp),
                 cursorBrush = Brush.linearGradient(listOf(Color(0xFF6EA8FF), Color(0xFF60E7F2))),
             )
         }

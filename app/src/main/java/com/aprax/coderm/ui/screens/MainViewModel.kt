@@ -128,6 +128,32 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (ws.tabs.any { it.path == path }) _workspace.value = ws.copy(activeTab = path)
     }
 
+    fun openProjectPreview() {
+        val initial = _workspace.value as? WorkspaceState.Ready ?: return
+        val previewFile = initial.files.firstOrNull {
+            !it.isDirectory && it.relativePath.substringAfterLast('/').lowercase() in setOf("index.html", "index.htm")
+        } ?: initial.files.firstOrNull { !it.isDirectory && it.extension.lowercase() in setOf("html", "htm") }
+        if (previewFile == null) {
+            showStatus("No HTML entry point found. Add index.html to preview the project.")
+            return
+        }
+        viewModelScope.launch {
+            val ws = _workspace.value as? WorkspaceState.Ready ?: return@launch
+            val existing = ws.tabs.firstOrNull { it.path == previewFile.relativePath }
+            val tab = existing ?: runCatching {
+                val content = container.projects.read(previewFile.uri)
+                OpenTab(previewFile.relativePath, previewFile.uri, content, content, languageFor(previewFile.extension))
+            }.getOrElse {
+                showStatus(userMessage(it))
+                return@launch
+            }
+            val tabs = if (existing == null) ws.tabs + tab else ws.tabs
+            _workspace.value = ws.copy(tabs = tabs, activeTab = previewFile.relativePath)
+            _destination.value = Destination.PREVIEW
+            runDiagnostics()
+        }
+    }
+
     fun closeTab(path: String) {
         val ws = _workspace.value as? WorkspaceState.Ready ?: return
         val tab = ws.tabs.firstOrNull { it.path == path } ?: return
