@@ -371,63 +371,98 @@ private fun OnboardingScreen(
     onQuickAction: (Destination) -> Unit
 ) {
     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
-            Spacer(Modifier.height(12.dp))
-            Text("Your mobile development workspace", style = MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier.height(10.dp))
-            Text("Select a project directory to start coding. Your selected folder remains the local source of truth.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(22.dp))
+        Column(Modifier.fillMaxSize()) {
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp)
+            ) {
+                Spacer(Modifier.height(12.dp))
+                Text("Your mobile development workspace", style = MaterialTheme.typography.headlineLarge)
+                Spacer(Modifier.height(10.dp))
+                Text("Select a project directory to start coding. Your selected folder remains the local source of truth.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(22.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.extraLarge,
+                    tonalElevation = 3.dp
+                ) {
+                    Column(Modifier.padding(22.dp)) {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            BrandMark(Modifier.size(88.dp))
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text("No Project Open", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text("Select a project directory to start coding or create a new project.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Quick Access", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { onQuickAction(Destination.SETTINGS) }) { Text("View All") }
+                }
+                QuickAccessGrid(onQuickAction)
+
+                Spacer(Modifier.height(24.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Text("Recent Projects", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    if (recent.isNotEmpty()) TextButton(onClick = { onQuickAction(Destination.EXPLORER) }) { Text("View All") }
+                }
+                if (recent.isNotEmpty()) {
+                    recent.take(8).forEach { project ->
+                        RecentProjectItem(project, onRecent, onRemoveRecent, onPinRecent)
+                    }
+                } else {
+                    Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
+                        Column(Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.History, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                            Text("No recent projects yet", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(4.dp))
+                            Text("Open a project to see it here", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                Surface(shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Security, null)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Projects stay on your device unless you explicitly use AI, Git/network actions, or share a file.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // Keep the primary actions anchored at the bottom in portrait mode,
+            // just above the app's bottom navigation. This prevents the main
+            // actions from floating in the middle of the screen on tall phones.
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                tonalElevation = 3.dp
+                tonalElevation = 5.dp,
+                shadowElevation = 6.dp
             ) {
-                Column(Modifier.padding(22.dp)) {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        BrandMark(Modifier.size(88.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 12.dp)
+                ) {
+                    Button(onClick = onOpen, modifier = Modifier.weight(1f).height(54.dp)) {
+                        Icon(Icons.Default.FolderOpen, null)
+                        Spacer(Modifier.width(7.dp))
+                        Text("Open Project")
                     }
-                    Spacer(Modifier.height(16.dp))
-                    Text("No Project Open", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    Text("Select a project directory to start coding or create a new project.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(18.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        Button(onClick = onOpen, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
-                        OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Quick Access", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onQuickAction(Destination.SETTINGS) }) { Text("View All") }
-            }
-            QuickAccessGrid(onQuickAction)
-
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Recent Projects", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                if (recent.isNotEmpty()) TextButton(onClick = { onQuickAction(Destination.EXPLORER) }) { Text("View All") }
-            }
-            if (recent.isNotEmpty()) {
-                recent.take(8).forEach { project ->
-                    RecentProjectItem(project, onRecent, onRemoveRecent, onPinRecent)
-                }
-            } else {
-                Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
-                    Column(Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.History, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        Text("No recent projects yet", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Open a project to see it here", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(54.dp)) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(7.dp))
+                        Text("Create Project")
                     }
                 }
-            }
-            Spacer(Modifier.height(20.dp))
-            Surface(shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Security, null); Spacer(Modifier.width(10.dp)); Text("Projects stay on your device unless you explicitly use AI, Git/network actions, or share a file.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
     }
