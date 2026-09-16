@@ -1,58 +1,103 @@
-# Coder Mobile
+# Coder Mobile - AI Coding Workspace for Android
 
-**Application:** Coder Mobile  
-**Package:** `com.aprax.coderm`  
-**Language:** Kotlin  
-**UI:** Jetpack Compose / Material 3
+Coder Mobile is a mobile-first AI coding workspace designed specifically for Android phones, tablets, and mobile browsers. It delivers a modern, dark developer-tool aesthetic with an integrated code editor, file explorer, OpenAI-compatible AI assistant, safe diff/patch review system, and an on-device developer terminal.
 
-## Included MVP
+---
 
-- Project-first onboarding with Open Project / Create Project / Recent Projects
-- Android Storage Access Framework directory access with persisted URI permissions
-- Project scanning and lightweight project-type detection
-- Project-root source-of-truth file explorer
-- File opening, editing and autosave
-- Multiple editor tabs
-- Dark / light / system theme cycle
-- Touch coding toolbar
-- Project file search
-- HTML preview in a WebView with local-file access disabled
-- AI provider store with Android Keystore-backed API key encryption
-- OpenAI-compatible provider requests with custom base URL, model, API key and connection test
-- Project-aware AI context limited to project metadata and active file content
-- Terminal surface with command execution intentionally disabled in this build
-- Problems surface and polished empty states
-- Release R8 configuration
+## Core Capabilities
+
+1. **Configurable AI Provider**
+   - Compatible with any OpenAI-style REST endpoint (`/chat/completions`, `/models`).
+   - Supports custom base URLs (OpenAI, OpenRouter, DeepSeek, Local Ollama, Groq, vLLM, etc.).
+   - Secure credential management: API keys in the native Android app are encrypted with hardware-backed AES-256 GCM using the **Android KeyStore**.
+   - Built-in connection tester to diagnose latency, reachability, and authentication status.
+
+2. **Mobile-First Code Editor**
+   - Touch keyboard coding toolbar with one-tap syntax keys (`Tab`, `{ }`, `( )`, `[ ]`, `<`, `>`, `=`, `;`, `:`, `->`, `undo`, `redo`).
+   - Line numbers with synchronized scrolling.
+   - Syntax token highlighting across JavaScript, TypeScript, Python, Kotlin, Java, HTML, CSS, PHP, and Markdown.
+   - Multi-tab file management with dirty state indicators and search/replace.
+   - Built for `windowSoftInputMode="adjustResize"` to ensure the mobile keyboard never obscures the editor or input fields.
+
+3. **Safe AI Diff & Patch Review**
+   - The AI inspects the active project context and proposes file changes.
+   - Every file change is rendered in a visual **diff viewer** with additions (`+`) and deletions (`-`).
+   - Two-button workflow (**Apply Changes** / **Reject**) ensures code is never overwritten silently.
+
+4. **Android File System & Storage Access Framework (SAF)**
+   - Mounts local Android device directories directly into the IDE using `DocumentsContract` and `OpenDocumentTree`.
+   - File read, write, create, and delete operations are bridged asynchronously to native Android storage.
+   - Includes browser File System Access API and folder import fallbacks when run outside the APK.
+
+5. **Terminal & Developer Console**
+   - Integrated developer console with commands: `help`, `status`, `ls`, `cat`, `test-api`, `termux-info`, `date`, `clear`.
+   - Real-time logging of file operations, API network requests, and system events.
+
+---
+
+## Building and Running on Android via Termux
+
+You can build and package Coder Mobile directly on an Android device using Termux.
+
+### Prerequisites in Termux
+```bash
+# Update Termux packages
+pkg update && pkg upgrade -y
+
+# Install OpenJDK 17, Gradle, Git, and Termux API
+pkg install openjdk-17 gradle git termux-api -y
+
+# Verify Java version
+java -version
+```
+
+### Clone and Build the Project
+```bash
+# Navigate to your workspace directory
+cd ~
+
+# Clone the repository
+git clone https://github.com/example/codex-mobile.git
+cd codex-mobile
+
+# Run the Gradle build directly on device
+gradle assembleDebug
+```
+
+### Installing the Generated APK
+```bash
+# Open and install the generated debug APK
+termux-open app/build/outputs/apk/debug/app-debug.apk
+```
+
+---
 
 ## Architecture
 
-The app is intentionally split by responsibility:
+- **Native Layer (`app/src/main/java/com/example/`)**:
+  - `MainActivity.kt`: Hosts the hardware-accelerated WebView, handles `WebViewClient`, edge-to-edge window insets, and Android back navigation.
+  - `AndroidBridge.kt`: JavaScript interface (`@JavascriptInterface`) bridging file operations and secure storage to the web UI.
+  - `DocumentTreeHelper.kt`: Implements Android Storage Access Framework (SAF) tree traversal and content resolver streams.
+  - `SecureStorageHelper.kt`: Encrypts API keys with `AES/GCM/NoPadding` using cryptographic keys generated in the `AndroidKeyStore`.
 
-`data/` contains project storage, SAF/file operations, provider persistence, secret storage, and HTTP AI access.
+- **Web Workspace Layer (`app/src/main/assets/web/`)**:
+  - `index.html`: Mobile-first responsive IDE shell (no emojis, SVG/PNG assets only).
+  - `css/app.css`: Dark developer theme with adaptive mobile bottom navigation and desktop split layouts.
+  - `js/icons.js`: Centralized SVG icon system.
+  - `js/bridge.js`: Promise-based native bridge interface.
+  - `js/storage.js`: Secure secrets and preferences manager.
+  - `js/file-system.js`: Virtual and native filesystem controller.
+  - `js/editor.js`: Touch editor engine with virtual coding toolbar.
+  - `js/diff-patch.js`: Line diff parser and proposal card renderer.
+  - `js/ai-client.js`: OpenAI-compatible completions client with attached context coordinator.
+  - `js/terminal.js`: Interactive developer console.
+  - `js/app.js`: Main app orchestrator.
 
-`ui/screens/` contains workspace navigation and feature surfaces.
+---
 
-`ui/editor/` contains the mobile editor surface.
+## Testing & Verification
 
-`ui/components/` and `ui/theme/` form the shared design system.
-
-`MainViewModel` owns workspace state and coordinates repositories rather than putting all logic into composables.
-
-## Project source of truth
-
-The selected tree URI is persisted and all file reads/writes use the Android `ContentResolver`/`DocumentFile` path. The app does not copy the project into an application-private mirror.
-
-## Build environment
-
-- Android Gradle Plugin: 9.4.0
-- Kotlin: 2.4.20
-- Compose BOM: 2026.08.00
-- compileSdk / targetSdk: 36
-- minSdk: 26
-- Java: 21
-
-The container used to prepare this artifact did not have Gradle or an Android SDK installed, and outbound dependency downloads were unavailable, so an end-to-end Gradle build was not executed here. Open the project in a compatible Android Studio installation and sync the project to resolve dependencies.
-
-## Important scope notes
-
-This artifact is a production-oriented **MVP foundation**, not a claim that every P1/P2 feature in the PRD is already implemented. In particular, advanced LSP-style diagnostics, true code-folding/tokenized syntax rendering, Git operations, real terminal process execution, advanced runtime/build orchestration, AI diff application/review, remote development, and collaboration remain follow-on work.
+To run unit and Robolectric tests locally:
+```bash
+gradle :app:testDebugUnitTest
+```
