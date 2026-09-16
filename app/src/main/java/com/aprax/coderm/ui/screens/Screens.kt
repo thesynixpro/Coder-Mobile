@@ -31,6 +31,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -85,9 +86,7 @@ fun RootScreen(vm: MainViewModel, context: Context) {
         status?.let { snackbarHostState.showSnackbar(it); vm.clearStatus() }
     }
 
-    val configuration = LocalConfiguration.current
-    val isTablet = configuration.screenWidthDp >= 600
-    val isCompactPortrait = !isTablet && configuration.screenHeightDp > configuration.screenWidthDp
+    val isTablet = LocalConfiguration.current.screenWidthDp >= 600
     val ready = workspace as? WorkspaceState.Ready
 
     fun navigate(destination: Destination) {
@@ -98,17 +97,24 @@ fun RootScreen(vm: MainViewModel, context: Context) {
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            CoderTopBar(
-                title = ready?.project?.displayName ?: "Coder Mobile",
-                subtitle = ready?.project?.type?.label ?: "Code • Build • Create",
-                onBrandClick = { navigate(Destination.EXPLORER) },
-                onSearch = { navigate(Destination.SEARCH) },
-                onMore = { moreOpen = true },
-                showWorkspaceActions = ready != null,
-                compactPortrait = isCompactPortrait,
-                onSave = vm::saveActive,
-                onRefresh = vm::refresh
-            )
+            if (workspace is WorkspaceState.NoProject && destination == Destination.EXPLORER) {
+                HomeTopBar(
+                    onSearch = { navigate(Destination.SEARCH) },
+                    onTheme = { navigate(Destination.SETTINGS) },
+                    onMore = { moreOpen = true }
+                )
+            } else {
+                CoderTopBar(
+                    title = ready?.project?.displayName ?: "Coder Mobile",
+                    subtitle = ready?.project?.type?.label ?: "Code • Build • Create",
+                    onBrandClick = { navigate(Destination.EXPLORER) },
+                    onSearch = { navigate(Destination.SEARCH) },
+                    onMore = { moreOpen = true },
+                    showWorkspaceActions = ready != null,
+                    onSave = vm::saveActive,
+                    onRefresh = vm::refresh
+                )
+            }
         },
         bottomBar = {
             if (!isTablet) {
@@ -117,7 +123,7 @@ fun RootScreen(vm: MainViewModel, context: Context) {
                     NavItem("Editor", Icons.Default.Code, destination == Destination.EDITOR && !moreOpen) { navigate(Destination.EDITOR) }
                     NavItem("Preview", Icons.Default.Visibility, destination == Destination.PREVIEW && !moreOpen) { navigate(Destination.PREVIEW) }
                     NavItem("AI", Icons.Default.AutoAwesome, destination == Destination.AI && !moreOpen) { navigate(Destination.AI) }
-                    NavItem("More", Icons.Default.MoreHoriz, moreOpen) { moreOpen = true }
+                    NavItem("Terminal", Icons.Default.Terminal, destination == Destination.TERMINAL && !moreOpen) { navigate(Destination.TERMINAL) }
                 }
             }
         }
@@ -223,7 +229,6 @@ private fun CoderTopBar(
     onSearch: () -> Unit,
     onMore: () -> Unit,
     showWorkspaceActions: Boolean,
-    compactPortrait: Boolean,
     onSave: () -> Unit,
     onRefresh: () -> Unit
 ) {
@@ -243,9 +248,7 @@ private fun CoderTopBar(
             IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
             if (showWorkspaceActions) {
                 IconButton(onClick = onSave) { Icon(Icons.Default.Save, "Save") }
-                if (!compactPortrait) {
-                    IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Refresh project") }
-                }
+                IconButton(onClick = onRefresh) { Icon(Icons.Default.Refresh, "Refresh project") }
             }
             IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "More options") }
         }
@@ -365,6 +368,34 @@ private fun TabletNavItem(label: String, icon: ImageVector, selected: Boolean, o
 }
 
 @Composable
+private fun HomeTopBar(onSearch: () -> Unit, onTheme: () -> Unit, onMore: () -> Unit) {
+    TopAppBar(
+        navigationIcon = {
+            BrandMark(Modifier.padding(start = 16.dp).size(58.dp))
+        },
+        title = {
+            Column {
+                Text(
+                    text = "Coder Mobile",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Text(
+                    text = "Code. Build. Preview. Anywhere.",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = onSearch) { Icon(Icons.Default.Search, "Search") }
+            IconButton(onClick = onTheme) { Icon(Icons.Default.LightMode, "Appearance settings") }
+            IconButton(onClick = onMore) { Icon(Icons.Default.MoreVert, "More options") }
+        }
+    )
+}
+
+@Composable
 private fun OnboardingScreen(
     recent: List<ProjectRef>,
     onOpen: () -> Unit,
@@ -374,72 +405,150 @@ private fun OnboardingScreen(
     onPinRecent: (Uri) -> Unit,
     onQuickAction: (Destination) -> Unit
 ) {
-    Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
-            Spacer(Modifier.height(12.dp))
-            Text("Your mobile development workspace", style = MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier.height(10.dp))
-            Text("Select a project directory to start coding. Your selected folder remains the local source of truth.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(22.dp))
+    val configuration = LocalConfiguration.current
+    val compact = configuration.screenWidthDp < 430
+    val horizontalPadding = if (compact) 16.dp else 28.dp
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = horizontalPadding, vertical = 12.dp)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.extraLarge,
+            tonalElevation = 4.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        ) {
+            Column(Modifier.padding(if (compact) 18.dp else 28.dp)) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    BrandMark(Modifier.size(if (compact) 86.dp else 96.dp))
+                }
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    "No Project Open",
+                    style = MaterialTheme.typography.headlineMedium,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                )
+                Spacer(Modifier.height(7.dp))
+                Text(
+                    "Select a project directory to start coding\nor create a new project.",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(20.dp))
+                if (compact) {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        HomePrimaryButton("Open Project", Icons.Default.FolderOpen, onOpen)
+                        HomeSecondaryButton("Create Project", Icons.Default.Add, onCreate)
+                    }
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        HomePrimaryButton("Open Project", Icons.Default.FolderOpen, onOpen, Modifier.weight(1f))
+                        HomeSecondaryButton("Create Project", Icons.Default.Add, onCreate, Modifier.weight(1f))
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().clickable { },
+                    shape = MaterialTheme.shapes.large,
+                    color = Color.Transparent,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 15.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.History, null, Modifier.size(28.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(14.dp))
+                        Text("Recent Projects", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+        HomeSectionHeader("Quick Access", onViewAll = { onQuickAction(Destination.SETTINGS) })
+        QuickAccessGrid(onQuickAction)
+
+        Spacer(Modifier.height(24.dp))
+        HomeSectionHeader("Recent Projects", onViewAll = if (recent.isNotEmpty()) ({ onQuickAction(Destination.EXPLORER) }) else null)
+        if (recent.isNotEmpty()) {
+            recent.take(8).forEach { project ->
+                RecentProjectItem(project, onRecent, onRemoveRecent, onPinRecent)
+            }
+        } else {
             Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.extraLarge,
-                tonalElevation = 3.dp
+                Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.42f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
             ) {
-                Column(Modifier.padding(22.dp)) {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        BrandMark(Modifier.size(88.dp))
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    Text("No Project Open", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    Text("Select a project directory to start coding or create a new project.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(18.dp))
-                    if (LocalConfiguration.current.screenWidthDp < 430) {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
-                            OutlinedButton(onClick = onCreate, modifier = Modifier.fillMaxWidth().height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
-                        }
-                    } else {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                            Button(onClick = onOpen, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(7.dp)); Text("Open Project") }
-                            OutlinedButton(onClick = onCreate, modifier = Modifier.weight(1f).height(52.dp)) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(7.dp)); Text("Create Project") }
-                        }
-                    }
+                Column(
+                    Modifier.padding(vertical = 28.dp, horizontal = 18.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.History, null, Modifier.size(44.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(9.dp))
+                    Text("No recent projects yet", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(4.dp))
+                    Text("Open a project to see it here", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+        }
+        Spacer(Modifier.height(18.dp))
+    }
+}
 
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Quick Access", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                TextButton(onClick = { onQuickAction(Destination.SETTINGS) }) { Text("View All") }
+@Composable
+private fun HomeSectionHeader(title: String, onViewAll: (() -> Unit)?) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f), fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+        if (onViewAll != null) {
+            TextButton(onClick = onViewAll) {
+                Text("View All")
+                Spacer(Modifier.width(2.dp))
+                Icon(Icons.Default.ChevronRight, null, Modifier.size(18.dp))
             }
-            QuickAccessGrid(onQuickAction)
+        }
+    }
+}
 
-            Spacer(Modifier.height(24.dp))
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Text("Recent Projects", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                if (recent.isNotEmpty()) TextButton(onClick = { onQuickAction(Destination.EXPLORER) }) { Text("View All") }
-            }
-            if (recent.isNotEmpty()) {
-                recent.take(8).forEach { project ->
-                    RecentProjectItem(project, onRecent, onRemoveRecent, onPinRecent)
-                }
-            } else {
-                Surface(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
-                    Column(Modifier.padding(24.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.History, null, Modifier.size(42.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        Text("No recent projects yet", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(4.dp))
-                        Text("Open a project to see it here", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
-            }
-            Spacer(Modifier.height(20.dp))
-            Surface(shape = MaterialTheme.shapes.large, tonalElevation = 1.dp) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Security, null); Spacer(Modifier.width(10.dp)); Text("Projects stay on your device unless you explicitly use AI, Git/network actions, or share a file.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-            }
+@Composable
+private fun HomePrimaryButton(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .height(54.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(Brush.horizontalGradient(listOf(MaterialTheme.colorScheme.tertiary, MaterialTheme.colorScheme.primary)))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color.White)
+            Spacer(Modifier.width(8.dp))
+            Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun HomeSecondaryButton(label: String, icon: ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(
+        modifier
+            .height(54.dp)
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null)
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
         }
     }
 }
@@ -459,19 +568,19 @@ private fun QuickAccessGrid(onNavigate: (Destination) -> Unit) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { (label, icon, destination) ->
                     Surface(
-                        modifier = Modifier.weight(1f).height(96.dp).clickable { onNavigate(destination) },
+                        modifier = Modifier.weight(1f).height(102.dp).clickable { onNavigate(destination) },
                         shape = MaterialTheme.shapes.large,
-                        tonalElevation = 1.dp,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.56f),
                         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center, modifier = Modifier.fillMaxSize()) {
-                            Icon(icon, null, Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
-                            Spacer(Modifier.height(7.dp))
+                            Icon(icon, null, Modifier.size(31.dp), tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.height(8.dp))
                             Text(label, style = MaterialTheme.typography.labelLarge)
                         }
                     }
                 }
-                repeat(3 - row.size) { Spacer(Modifier.weight(1f).height(96.dp)) }
+                repeat(3 - row.size) { Spacer(Modifier.weight(1f).height(102.dp)) }
             }
         }
     }
@@ -741,39 +850,10 @@ private fun PreviewScreen(ws: WorkspaceState.Ready, vm: MainViewModel, context: 
         ?: ws.files.firstOrNull { !it.isDirectory && it.extension.lowercase() in setOf("html", "htm", "md", "markdown", "json", "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt") }
     if (active == null) { EmptyState(Icons.Default.VisibilityOff, "No previewable file", "Open an HTML, Markdown, JSON, image, text, or PDF file from Explorer."); return }
     val extension = active.extension.lowercase()
-    val compactPortrait = LocalConfiguration.current.screenWidthDp < 430 && LocalConfiguration.current.screenHeightDp > LocalConfiguration.current.screenWidthDp
     Column(Modifier.fillMaxSize()) {
-        if (compactPortrait) {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)) {
-                Text("Preview", style = MaterialTheme.typography.titleLarge)
-                Text(active.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.openProjectPreview() }, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Default.PlayArrow, null)
-                        Spacer(Modifier.width(6.dp))
-                        Text("Project Preview")
-                    }
-                    OutlinedButton(onClick = { vm.setDestination(Destination.EDITOR) }, modifier = Modifier.weight(0.55f)) { Text("Edit") }
-                }
-            }
-        } else {
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text("Preview", style = MaterialTheme.typography.titleLarge)
-                    Text(active.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                OutlinedButton(onClick = { vm.openProjectPreview() }) {
-                    Icon(Icons.Default.PlayArrow, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Project Preview")
-                }
-                TextButton(onClick = { vm.setDestination(Destination.EDITOR) }) { Text("Edit") }
-            }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Preview", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+            AssistChip(onClick = { vm.setDestination(Destination.EDITOR) }, label = { Text("Edit") })
         }
         when (extension) {
             "html", "htm" -> HtmlPreview(active, vm)
